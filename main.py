@@ -1,3 +1,4 @@
+# %%
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -45,7 +46,6 @@ def f(r, T, K, S0, sigma, N):
     S = gbm(S0, r, sigma, T, N)
     return np.exp(-r * T) * (0.5*(S[0]+S[-1]+2*np.sum(S[1:-1]))*(T/N)/T - K)
 
-
 def monte_carlo(f, r, T, K, S0, sigma, N, N_sims):
     res = np.zeros(len(N))
     for i, N_i in enumerate(N):
@@ -53,5 +53,25 @@ def monte_carlo(f, r, T, K, S0, sigma, N, N_sims):
             res[i] += f(r, T, K, S0, sigma, N_i)
     return res/N_sims
 
-print(monte_carlo(f, r, T, K, S0, sigma, N, N_sims))
-
+# %%
+# get estimate of continuous path with large N
+limit = monte_carlo(f, r, T, K, S0, sigma, [10000], N_sims)[0]
+# %%
+estimates = monte_carlo(f, r, T, K, S0, sigma, N, N_sims)
+error = np.abs(estimates - limit)
+# %%
+# assume error follows N^{-\alpha}, estimate \alpha with linreg
+from scipy.stats import linregress
+alpha, intercept = linregress(np.log(N), np.log(error))[0:2]
+dx = np.linspace(6, max(N), 1000) 
+curve = np.exp(intercept) * dx ** alpha
+print("alpha = {}".format(alpha))
+# %%
+# plot error
+plt.figure(dpi=150)
+plt.plot(N, error, label='observed error')
+plt.plot(dx, curve, label=rf"${round(np.exp(intercept),3)}N^{({round(alpha, 3)})}$")
+plt.xlabel('N')
+plt.legend()
+plt.ylabel('error')
+# %%
