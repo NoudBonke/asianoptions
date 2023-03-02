@@ -4,4 +4,4 @@ Asian call options are priced with regards to the average price of their underly
 
 $$ e^{-rT}\mathbb{E}\left[ \frac{1}{T}\int_0^T S(t) dt - K \right ] + \mathcal{O}(N^{-\alpha}), $$
 
-where r is the short rate, T the maturity, S(t) a GBM, K the strike price and N the sampling rate of the underlying stock price. 
+where $r$ is the short rate, $T$ the maturity, $S(t)$ a GBM, $K$ the strike price and $N$ the sampling rate of the underlying stock price. 
