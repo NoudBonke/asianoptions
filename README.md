@@ -1,5 +1,5 @@
 # asianoptions
-Pricing Asian call options using GBM Black-Scholes
+Pricing Asian call options using GBM Black-Scholes.
 Asian call options are priced with regards to the average price of their underlying asset. 
 
 The hypothesis tested here, is that the price of the options evolve as:
