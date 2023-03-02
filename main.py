@@ -44,14 +44,14 @@ def gbm(S0, r, sigma, T, N):
 
 def f(r, T, K, S0, sigma, N):
     S = gbm(S0, r, sigma, T, N)
-    return np.exp(-r * T) * (0.5*(S[0]+S[-1]+2*np.sum(S[1:-1]))*(T/N)/T - K)
+    return np.exp(-r * T) * max(0.5*(S[0]+S[-1]+2*np.sum(S[1:-1]))*(T/N)/T - K, 0)
 
 def monte_carlo(f, r, T, K, S0, sigma, N, N_sims):
     res = np.zeros(len(N))
     for i, N_i in enumerate(N):
         for _ in range(N_sims):
             res[i] += f(r, T, K, S0, sigma, N_i)
-    return np.max(res/N_sims, np.zeros(N))
+    return res/N_sims
 
 # %%
 # get estimate of continuous path with large N

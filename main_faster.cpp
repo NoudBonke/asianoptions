@@ -5,6 +5,7 @@
 #include <algorithm>
 
 int seed = 42;
+double zero = 0.0;
 std::normal_distribution<float> distribution_normal(0.0, 1.0);
 std::default_random_engine generator(seed);
 
@@ -27,7 +28,7 @@ float f(const float r, const float T, const float K, const float S0, const float
     for (auto i=1; i<N; ++i){
         res += 2*S[i];
     }
-    return std::exp(-r*T)*(0.5*res/N - K);
+    return std::exp(-r*T)*std::max(0.5*res/N - K, zero);
 }
 
 
@@ -38,7 +39,6 @@ void monte_carlo(float r, float T, float K, float S0, float sigma, int * N, int 
             res[i] += f(r, T, K, S0, sigma, N[i], S);
         }
         res[i] /= N_sims;
-        res[i] = std::max(res[i], 0.0f);
     }
     return;
 }
