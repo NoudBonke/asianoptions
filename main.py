@@ -51,13 +51,16 @@ def monte_carlo(f, r, T, K, S0, sigma, N, N_sims):
     for i, N_i in enumerate(N):
         for _ in range(N_sims):
             res[i] += f(r, T, K, S0, sigma, N_i)
-    return res/N_sims
+    return np.max(res/N_sims, np.zeros(N))
 
 # %%
 # get estimate of continuous path with large N
 limit = monte_carlo(f, r, T, K, S0, sigma, [10000], N_sims)[0]
 # %%
-estimates = monte_carlo(f, r, T, K, S0, sigma, N, N_sims)
+#estimates = monte_carlo(f, r, T, K, S0, sigma, N, N_sims)
+input_from_c = np.loadtxt("output.txt", delimiter=' ')
+estimates = input_from_c[:, 1]
+N = input_from_c[:, 0]
 error = np.abs(estimates - limit)
 # %%
 # assume error follows N^{-\alpha}, estimate \alpha with linreg

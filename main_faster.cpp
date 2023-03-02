@@ -1,5 +1,8 @@
 #include <cmath>
 #include <random>
+#include <iostream>
+#include <fstream>
+#include <algorithm>
 
 int seed = 42;
 std::normal_distribution<float> distribution_normal(0.0, 1.0);
@@ -35,10 +38,18 @@ void monte_carlo(float r, float T, float K, float S0, float sigma, int * N, int 
             res[i] += f(r, T, K, S0, sigma, N[i], S);
         }
         res[i] /= N_sims;
+        res[i] = std::max(res[i], 0.0f);
     }
     return;
 }
 int main(int argc, char* argv[]){
+
+    std::ofstream writeFile;
+    writeFile.open("output.txt");
+    if (!writeFile.is_open()){
+        std::cout << "File not found\n";
+        return 0;
+    }
     // volatility
     float sigma = 0.25;
 
@@ -57,7 +68,7 @@ int main(int argc, char* argv[]){
     // number of simulations
     int N_sims = 1000;
 
-    const int N_length = 100;
+    const int N_length = 75;
     int N[N_length];
     float res[N_length];
     for(auto k=0; k<N_length; ++k){
@@ -65,7 +76,11 @@ int main(int argc, char* argv[]){
         res[k] = 0;
     }
     monte_carlo(r, T, K, S0, sigma, N, N_length, N_sims, res);
-  return 0;
+    for(auto k=0; k<N_length; ++k){
+        writeFile << N[k] << ' ' << res[k] << std::endl;
+    }
+    writeFile.close();
+    return 0;
 }
 
 
