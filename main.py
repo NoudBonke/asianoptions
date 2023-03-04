@@ -18,10 +18,11 @@ K = 100
 S0 = 100
 
 # sampling rate
-N = np.array([6, 36, 150, 750])
+#N = np.array([6, 36, 150, 750])
+N = np.arange(6, 5006, 50)
 
 # number of simulations
-N_sims = 1000
+N_sims = 100
 
 # geometric brownian motion
 def gbm(S0, r, sigma, T, N):
@@ -44,7 +45,7 @@ def gbm(S0, r, sigma, T, N):
 
 def f(r, T, K, S0, sigma, N):
     S = gbm(S0, r, sigma, T, N)
-    return np.exp(-r * T) * max(0.5*(S[0]+S[-1]+2*np.sum(S[1:-1]))*(T/N)/T - K, 0)
+    return np.exp(-r * T) * max(0.5*(S[0]+S[-1]+2*np.sum(S[1:-1]))*(T/(N+1))/T - K, 0)
 
 def monte_carlo(f, r, T, K, S0, sigma, N, N_sims):
     res = np.zeros(len(N))
@@ -55,12 +56,14 @@ def monte_carlo(f, r, T, K, S0, sigma, N, N_sims):
 
 # %%
 # get estimate of continuous path with large N
-limit = monte_carlo(f, r, T, K, S0, sigma, [10000], N_sims)[0]
+#limit = monte_carlo(f, r, T, K, S0, sigma, [10000], N_sims)[0]
 # %%
 #estimates = monte_carlo(f, r, T, K, S0, sigma, N, N_sims)
-input_from_c = np.loadtxt("output.txt", delimiter=' ')
-estimates = input_from_c[:, 1]
-N = input_from_c[:, 0]
+
+input_from_c = np.loadtxt("outputnew.txt", delimiter=' ')
+estimates = input_from_c[:-1, 1]
+N = input_from_c[:-1, 0]
+limit = input_from_c[-1, 1]
 error = np.abs(estimates - limit)
 # %%
 # assume error follows N^{-\alpha}, estimate \alpha with linreg
@@ -76,5 +79,6 @@ plt.plot(N, error, label='observed error')
 plt.plot(dx, curve, label=rf"${round(np.exp(intercept),3)}N^{({round(alpha, 3)})}$")
 plt.xlabel('N')
 plt.legend()
-plt.ylabel('error')
+plt.ylabel('deviation')
+plt.show()
 # %%
