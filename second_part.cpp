@@ -49,21 +49,21 @@ double covar(const double * res1, const double * res2, const double mu2, const d
 
 void monte_carlo(double r, double T, double K, double S0, double sigma, int N, int N_sims, double * res, double cvexpected, double cvvar){
     double S[N];
-    double finalprice[N_sims];
+    double cv[N_sims];
     for (auto j=0; j<N_sims; ++j){
         gbm(S0, r, sigma, T, N, S);
         // collect terminal prices for control variates
-        finalprice[j] = S[N];
+        cv[j] = S[N];
         res[j] = std::exp(-r*T)*std::max(mean(S, N) - K, zero);
     }
     // control variates based on terminal price
 
-    double cov = covar(res, finalprice, cvexpected, N_sims);
+    double cov = covar(res, cv, cvexpected, N_sims);
     double bstar = cov/cvvar;
 
     double newres[N_sims];
     for (auto i=0; i<N_sims; ++i){
-        newres[i] = res[i] - bstar*(finalprice[i]-cvexpected);
+        newres[i] = res[i] - bstar*(cv[i]-cvexpected);
     }
     double avg = mean(newres, N_sims);
     double error = stdev(newres, N_sims)/std::sqrt(N_sims);
@@ -106,7 +106,7 @@ int main(int argc, char* argv[]){
     int N = 256;
     double res[N_sims];
     monte_carlo(r, T, K, S0, sigma, N, N_sims, res, expectedfinalprice, varfinalprice);
-    writeFile << N << ' ' << res << std::endl;
+    //writeFile << N << ' ' << res << std::endl;
     writeFile.close();
     return 0;
 }
