@@ -4,6 +4,10 @@
 #include <fstream>
 #include <algorithm>
 
+#include <eigen3/Eigen/Eigenvalues>
+#include <eigen3/Eigen/Dense>
+
+
 int seed = 42;
 double zero = 0.0;
 std::normal_distribution<double> distribution_normal(0.0, 1.0);
@@ -21,7 +25,7 @@ void gbm(const double S0, const double r, const double sigma, const double T, co
     return;
 }
 
-double mean(const double * res, const double N){
+double mean(const double * res, const int N){
     double mean = 0;
     for (auto i=0; i<N; ++i){
         mean += res[i];
@@ -29,7 +33,7 @@ double mean(const double * res, const double N){
     return mean/N;
 }
 
-double stdev(const double * res, const double N){
+double stdev(const double * res, const int N){
     double var = 0;
     double mu = mean(res, N);
     for (auto i=0; i<N; ++i){
@@ -38,7 +42,7 @@ double stdev(const double * res, const double N){
     return std::sqrt(var/(N-1));
 }
 
-double covar(const double * res1, const double * res2, const double mu2, const double N){
+double covar(const double * res1, const double * res2, const double mu2, const int N){
     double var = 0;
     double mu1 = mean(res1, N);
     for (auto i=0; i<N; ++i){
@@ -47,7 +51,24 @@ double covar(const double * res1, const double * res2, const double mu2, const d
     return var/(N-1);
 }
 
-void monte_carlo(double r, double T, double K, double S0, double sigma, int N, int N_sims, double * res, double cvexpected, double cvvar){
+
+double browniancov(const int N, const double T, const double sigma){
+    Eigen::EigenSolver<Eigen::MatrixXd> es;
+    Eigen::MatrixXd covariancematrix(N,N);
+    double variance = std::pow(sigma, 2);
+    for (auto i=0; i<N; ++i){
+        for (auto j=0; j<N; ++j){
+            // covariance of BM
+            covariancematrix(i, j) = variance*std::min((i+1)*T/N,(j+1)*T/N);
+        }
+    }
+    es.compute(covariancematrix, /* computeEigenvectors = */ true);
+    //std::cout << "The eigenvalues of A are: " << es.eigenvalues().transpose() << std::endl;
+    // solver always returns complex type eigenvalues but matrix is symmetric so imaginary part is zero
+    return es.eigenvalues()(0).real(); // PLACEHOLDER, SHOULD RETURN VARIANCE
+}
+
+void monte_carlo(double r, double T, double K, double S0, double sigma,  const int N,  const int N_sims, double * res, const double cvexpected, const double cvvar){
     double S[N];
     double cv[N_sims];
     for (auto j=0; j<N_sims; ++j){
@@ -104,6 +125,10 @@ int main(int argc, char* argv[]){
     // number of simulations
     int N_sims = 10000;
     int N = 256;
+
+
+    double bc = browniancov(N, T, sigma);
+    std::cout << bc << std::endl;
     double res[N_sims];
     monte_carlo(r, T, K, S0, sigma, N, N_sims, res, expectedfinalprice, varfinalprice);
     //writeFile << N << ' ' << res << std::endl;
