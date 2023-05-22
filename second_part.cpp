@@ -8,7 +8,7 @@
 #include <eigen3/Eigen/Dense>
 
 
-int seed = 42;
+int seed = 20;
 double zero = 0.0;
 std::normal_distribution<double> distribution_normal(0.0, 1.0);
 std::default_random_engine generator(seed);
@@ -27,7 +27,7 @@ void gbm(const double S0, const double r, const double sigma, const double T, co
 
 double gbm_PCA(const double S0, const double r, const double sigma, const double T, const int N, double * S, Eigen::MatrixXd &PCA){
     double dt = T/(N-1);
-    S[0] = std::exp(S0);
+    S[0] = S0;
     Eigen::VectorXd normals(N-1);
     for (auto i=0; i<N-1; ++i){
         normals[i] = distribution_normal(generator);
@@ -35,7 +35,7 @@ double gbm_PCA(const double S0, const double r, const double sigma, const double
     Eigen::VectorXd PCAresultEigen = PCA*normals;
     //std::cout << PCAresultEigen << std::endl;
     for (auto i=0; i<N-1; ++i){
-        S[i+1] = PCAresultEigen[i] + i*dt*r;
+        S[i+1] = (r - std::pow(sigma, 2)/2)*i*dt + PCAresultEigen[i];
         S[i+1] = S0*std::exp(S[i+1]);
     }
     // control variate
@@ -86,11 +86,11 @@ void browniancov(const int N, const double T, const double sigma, Eigen::MatrixX
     return; // PLACEHOLDER, SHOULD RETURN VARIANCE
 }
 
-void monte_carlo_terminal(double r, double T, double K, double S0, double sigma,  const int N,  const int N_sims, double * res, const double cvexpected, const double cvvar){
+void monte_carlo_terminal(double r, double T, double K, double S0, double sigma,  const int N,  const int N_sims, Eigen::MatrixXd &PCA, double * res, const double cvexpected, const double cvvar){
     double S[N];
     double cv[N_sims];
     for (auto j=0; j<N_sims; ++j){
-        gbm(S0, r, sigma, T, N, S);
+        double dummy = gbm_PCA(S0, r, sigma, T, N, S, PCA);
         // collect terminal prices for control variates
         cv[j] = S[N-1];
         res[j] = std::exp(-r*T)*std::max(mean(S, N) - K, zero);
@@ -107,6 +107,8 @@ void monte_carlo_terminal(double r, double T, double K, double S0, double sigma,
     double avg = mean(newres, N_sims);
     double error = stdev(newres, N_sims)/std::sqrt(N_sims);
     double corr = cov/(sqrt(cvvar)*stdev(res, N_sims));
+    std::cout << "no variance reduction: " << std::endl;
+    std::cout << "N = " << N << " : " << mean(res, N_sims) << " +- " << stdev(res, N_sims)/std::sqrt(N_sims) << std::endl;
     std::cout << "variance reduction: " << 1 - std::pow(corr, 2) << std::endl;
     std::cout << "N = " << N << " : " << avg << " +- " << error << std::endl;
     return;
@@ -131,6 +133,8 @@ void monte_carlo_PCA(double r, double T, double K, double S0, double sigma,  con
     double avg = mean(newres, N_sims);
     double error = stdev(newres, N_sims)/std::sqrt(N_sims);
     double corr = cov/(sqrt(cvvar)*stdev(res, N_sims));
+    std::cout << "no variance reduction: " << std::endl;
+    std::cout << "N = " << N << " : " << mean(res, N_sims) << " +- " << stdev(res, N_sims)/std::sqrt(N_sims) << std::endl;
     std::cout << "variance reduction: " << 1 - std::pow(corr, 2) << std::endl;
     std::cout << "N = " << N << " : " << avg << " +- " << error << std::endl;
     return;
@@ -166,19 +170,16 @@ int main(int argc, char* argv[]){
     double varfinalprice = (std::pow(S0,2))*std::exp(2*r*T)*(std::exp(std::pow(sigma, 2)*T)-1);
 
     // number of simulations
-    int N_sims = 10000;
+    int N_sims = std::pow(10, 4);
     int N = 256;
 
-
-    //double bc = browniancov(N, T, sigma);
-
     double res[N_sims];
-    //monte_carlo_terminal(r, T, K, S0, sigma, N, N_sims, res, expectedfinalprice, varfinalprice);
-
     //first price is fixed at S0 so only 255 values may vary.
     Eigen::MatrixXd PCA(N-1,N-1);
     browniancov(N-1, T, sigma, PCA);
-    //std::cout << PCA << std::endl;
+    std::cout << "\nControl variate: first PCA component" << std::endl;
+    monte_carlo_terminal(r, T, K, S0, sigma, N, N_sims, PCA, res, expectedfinalprice, varfinalprice);
+    std::cout << "Control variate: terminal price" << std::endl;
     monte_carlo_PCA(r, T, K, S0, sigma, N, N_sims, PCA, res, 0, 1);
     //writeFile << N << ' ' << res << std::endl;
     writeFile.close();
