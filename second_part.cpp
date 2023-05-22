@@ -16,13 +16,30 @@ std::default_random_engine generator(seed);
 // geometric brownian motion
 // array is passed by pointer
 void gbm(const double S0, const double r, const double sigma, const double T, const int N, double * S){
-    double dt = T/N;
+    double dt = T/(N-1);
     // S has length N+1
     S[0] = S0;
-    for (auto i=1; i<N+1; ++i){
+    for (auto i=1; i<N; ++i){
         S[i] = S[i - 1] * std::exp((r - 0.5 * std::pow(sigma, 2)) * dt + sigma * std::sqrt(dt) * distribution_normal(generator));
     }
     return;
+}
+
+double gbm_PCA(const double S0, const double r, const double sigma, const double T, const int N, double * S, Eigen::MatrixXd &PCA){
+    double dt = T/(N-1);
+    S[0] = std::exp(S0);
+    Eigen::VectorXd normals(N-1);
+    for (auto i=0; i<N-1; ++i){
+        normals[i] = distribution_normal(generator);
+    }
+    Eigen::VectorXd PCAresultEigen = PCA*normals;
+    //std::cout << PCAresultEigen << std::endl;
+    for (auto i=0; i<N-1; ++i){
+        S[i+1] = PCAresultEigen[i] + i*dt*r;
+        S[i+1] = S0*std::exp(S[i+1]);
+    }
+    // control variate
+    return normals[0];
 }
 
 double mean(const double * res, const int N){
@@ -52,7 +69,7 @@ double covar(const double * res1, const double * res2, const double mu2, const i
 }
 
 
-double browniancov(const int N, const double T, const double sigma){
+void browniancov(const int N, const double T, const double sigma, Eigen::MatrixXd &PCA){
     Eigen::EigenSolver<Eigen::MatrixXd> es;
     Eigen::MatrixXd covariancematrix(N,N);
     double variance = std::pow(sigma, 2);
@@ -63,18 +80,19 @@ double browniancov(const int N, const double T, const double sigma){
         }
     }
     es.compute(covariancematrix, /* computeEigenvectors = */ true);
-    //std::cout << "The eigenvalues of A are: " << es.eigenvalues().transpose() << std::endl;
-    // solver always returns complex type eigenvalues but matrix is symmetric so imaginary part is zero
-    return es.eigenvalues()(0).real(); // PLACEHOLDER, SHOULD RETURN VARIANCE
+    for (auto i=0; i<N; ++i){
+        PCA.col(i) = (std::sqrt(es.eigenvalues()[i])*es.eigenvectors().col(i).normalized()).real();
+    }
+    return; // PLACEHOLDER, SHOULD RETURN VARIANCE
 }
 
-void monte_carlo(double r, double T, double K, double S0, double sigma,  const int N,  const int N_sims, double * res, const double cvexpected, const double cvvar){
+void monte_carlo_terminal(double r, double T, double K, double S0, double sigma,  const int N,  const int N_sims, double * res, const double cvexpected, const double cvvar){
     double S[N];
     double cv[N_sims];
     for (auto j=0; j<N_sims; ++j){
         gbm(S0, r, sigma, T, N, S);
         // collect terminal prices for control variates
-        cv[j] = S[N];
+        cv[j] = S[N-1];
         res[j] = std::exp(-r*T)*std::max(mean(S, N) - K, zero);
     }
     // control variates based on terminal price
@@ -89,10 +107,35 @@ void monte_carlo(double r, double T, double K, double S0, double sigma,  const i
     double avg = mean(newres, N_sims);
     double error = stdev(newres, N_sims)/std::sqrt(N_sims);
     double corr = cov/(sqrt(cvvar)*stdev(res, N_sims));
-    std::cout << 1 - std::pow(corr, 2) << std::endl;
+    std::cout << "variance reduction: " << 1 - std::pow(corr, 2) << std::endl;
     std::cout << "N = " << N << " : " << avg << " +- " << error << std::endl;
     return;
 }
+
+void monte_carlo_PCA(double r, double T, double K, double S0, double sigma,  const int N,  const int N_sims, Eigen::MatrixXd &PCA, double * res, const double cvexpected, const double cvvar){
+    double S[N];
+    double cv[N_sims];
+    for (auto j=0; j<N_sims; ++j){
+        cv[j] = gbm_PCA(S0, r, sigma, T, N, S, PCA);
+        res[j] = std::exp(-r*T)*std::max(mean(S, N) - K, zero);
+    }
+    // control variates based on terminal price
+
+    double cov = covar(res, cv, cvexpected, N_sims);
+    double bstar = cov/cvvar;
+
+    double newres[N_sims];
+    for (auto i=0; i<N_sims; ++i){
+        newres[i] = res[i] - bstar*(cv[i]-cvexpected);
+    }
+    double avg = mean(newres, N_sims);
+    double error = stdev(newres, N_sims)/std::sqrt(N_sims);
+    double corr = cov/(sqrt(cvvar)*stdev(res, N_sims));
+    std::cout << "variance reduction: " << 1 - std::pow(corr, 2) << std::endl;
+    std::cout << "N = " << N << " : " << avg << " +- " << error << std::endl;
+    return;
+}
+
 int main(int argc, char* argv[]){
 
     std::ofstream writeFile;
@@ -127,10 +170,16 @@ int main(int argc, char* argv[]){
     int N = 256;
 
 
-    double bc = browniancov(N, T, sigma);
-    std::cout << bc << std::endl;
+    //double bc = browniancov(N, T, sigma);
+
     double res[N_sims];
-    monte_carlo(r, T, K, S0, sigma, N, N_sims, res, expectedfinalprice, varfinalprice);
+    //monte_carlo_terminal(r, T, K, S0, sigma, N, N_sims, res, expectedfinalprice, varfinalprice);
+
+    //first price is fixed at S0 so only 255 values may vary.
+    Eigen::MatrixXd PCA(N-1,N-1);
+    browniancov(N-1, T, sigma, PCA);
+    //std::cout << PCA << std::endl;
+    monte_carlo_PCA(r, T, K, S0, sigma, N, N_sims, PCA, res, 0, 1);
     //writeFile << N << ' ' << res << std::endl;
     writeFile.close();
     return 0;
