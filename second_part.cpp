@@ -83,60 +83,73 @@ void browniancov(const int N, const double T, const double sigma, Eigen::MatrixX
     for (auto i=0; i<N; ++i){
         PCA.col(i) = (std::sqrt(es.eigenvalues()[i])*es.eigenvectors().col(i).normalized()).real();
     }
-    return; // PLACEHOLDER, SHOULD RETURN VARIANCE
-}
-
-void monte_carlo_terminal(double r, double T, double K, double S0, double sigma,  const int N,  const int N_sims, Eigen::MatrixXd &PCA, double * res, const double cvexpected, const double cvvar){
-    double S[N];
-    double cv[N_sims];
-    for (auto j=0; j<N_sims; ++j){
-        double dummy = gbm_PCA(S0, r, sigma, T, N, S, PCA);
-        // collect terminal prices for control variates
-        cv[j] = S[N-1];
-        res[j] = std::exp(-r*T)*std::max(mean(S, N) - K, zero);
-    }
-    // control variates based on terminal price
-
-    double cov = covar(res, cv, cvexpected, N_sims);
-    double bstar = cov/cvvar;
-
-    double newres[N_sims];
-    for (auto i=0; i<N_sims; ++i){
-        newres[i] = res[i] - bstar*(cv[i]-cvexpected);
-    }
-    double avg = mean(newres, N_sims);
-    double error = stdev(newres, N_sims)/std::sqrt(N_sims);
-    double corr = cov/(sqrt(cvvar)*stdev(res, N_sims));
-    std::cout << "no variance reduction: " << std::endl;
-    std::cout << "N = " << N << " : " << mean(res, N_sims) << " +- " << stdev(res, N_sims)/std::sqrt(N_sims) << std::endl;
-    std::cout << "variance reduction: " << 1 - std::pow(corr, 2) << std::endl;
-    std::cout << "N = " << N << " : " << avg << " +- " << error << std::endl;
     return;
 }
 
-void monte_carlo_PCA(double r, double T, double K, double S0, double sigma,  const int N,  const int N_sims, Eigen::MatrixXd &PCA, double * res, const double cvexpected, const double cvvar){
+// void monte_carlo_terminal(double * S, double r, double T, double K, double S0, double sigma,  const int N,  const int N_sims, Eigen::MatrixXd &PCA, double * res, const double cvexpected, const double cvvar){
+//     double S[N];
+//     double cv[N_sims];
+//     for (auto j=0; j<N_sims; ++j){
+//         double dummy = gbm_PCA(S0, r, sigma, T, N, S, PCA);
+//         // collect terminal prices for control variates
+//         cv[j] = S[N-1];
+//         res[j] = std::exp(-r*T)*std::max(mean(S, N) - K, zero);
+//     }
+//     // control variates based on terminal price
+
+//     double cov = covar(res, cv, cvexpected, N_sims);
+//     double bstar = cov/cvvar;
+
+//     double newres[N_sims];
+//     for (auto i=0; i<N_sims; ++i){
+//         newres[i] = res[i] - bstar*(cv[i]-cvexpected);
+//     }
+//     double avg = mean(newres, N_sims);
+//     double error = stdev(newres, N_sims)/std::sqrt(N_sims);
+//     double corr = cov/(sqrt(cvvar)*stdev(res, N_sims));
+//     std::cout << "no variance reduction: " << std::endl;
+//     std::cout << "N = " << N << " : " << mean(res, N_sims) << " +- " << stdev(res, N_sims)/std::sqrt(N_sims) << std::endl;
+//     std::cout << "variance reduction: " << 1 - std::pow(corr, 2) << std::endl;
+//     std::cout << "N = " << N << " : " << avg << " +- " << error << std::endl;
+//     return;
+// }
+
+void monte_carlo_PCA(double r, double T, double K, double S0, double sigma,  const int N,  const int N_sims, Eigen::MatrixXd &PCA, double * res, const double cv_terminal_expected, const double cv_terminal_var, const double cv_PCA_expected, const double cv_PCA_var){
     double S[N];
-    double cv[N_sims];
+    double cv_PCA[N_sims];
+    double cv_terminal[N_sims];
     for (auto j=0; j<N_sims; ++j){
-        cv[j] = gbm_PCA(S0, r, sigma, T, N, S, PCA);
+        cv_PCA[j] = gbm_PCA(S0, r, sigma, T, N, S, PCA);
+        cv_terminal[j] = S[N-1];
         res[j] = std::exp(-r*T)*std::max(mean(S, N) - K, zero);
     }
     // control variates based on terminal price
 
-    double cov = covar(res, cv, cvexpected, N_sims);
-    double bstar = cov/cvvar;
+    double cov_PCA = covar(res, cv_PCA, cv_PCA_expected, N_sims);
+    double bstar_PCA = cov_PCA/cv_PCA_var;
 
-    double newres[N_sims];
+    double cov_terminal = covar(res, cv_terminal, cv_terminal_expected, N_sims);
+    double bstar_terminal = cov_terminal/cv_terminal_var;
+
+    double newres_PCA[N_sims];
+    double newres_terminal[N_sims];
+
     for (auto i=0; i<N_sims; ++i){
-        newres[i] = res[i] - bstar*(cv[i]-cvexpected);
+        newres_PCA[i] = res[i] - bstar_PCA*(cv_PCA[i]-cv_PCA_expected);
+        newres_terminal[i] = res[i] - bstar_terminal*(cv_terminal[i]-cv_terminal_expected);
     }
-    double avg = mean(newres, N_sims);
-    double error = stdev(newres, N_sims)/std::sqrt(N_sims);
-    double corr = cov/(sqrt(cvvar)*stdev(res, N_sims));
+    double avg_PCA = mean(newres_PCA, N_sims);
+    double error_PCA = stdev(newres_PCA, N_sims)/std::sqrt(N_sims);
+    double corr_PCA = cov_PCA/(sqrt(cv_PCA_var)*stdev(res, N_sims));
+    double avg_terminal = mean(newres_terminal, N_sims);
+    double error_terminal = stdev(newres_terminal, N_sims)/std::sqrt(N_sims);
+    double corr_terminal = cov_terminal/(sqrt(cv_terminal_var)*stdev(res, N_sims));
     std::cout << "no variance reduction: " << std::endl;
     std::cout << "N = " << N << " : " << mean(res, N_sims) << " +- " << stdev(res, N_sims)/std::sqrt(N_sims) << std::endl;
-    std::cout << "variance reduction: " << 1 - std::pow(corr, 2) << std::endl;
-    std::cout << "N = " << N << " : " << avg << " +- " << error << std::endl;
+    std::cout << "PCA control variate variance reduction: " << 1 - std::pow(corr_PCA, 2) << std::endl;
+    std::cout << "N = " << N << " : " << avg_PCA << " +- " << error_PCA << std::endl;
+    std::cout << "terminal price control variate variance reduction: " << 1 - std::pow(corr_terminal, 2) << std::endl;
+    std::cout << "N = " << N << " : " << avg_terminal << " +- " << error_terminal << std::endl;
     return;
 }
 
@@ -170,17 +183,23 @@ int main(int argc, char* argv[]){
     double varfinalprice = (std::pow(S0,2))*std::exp(2*r*T)*(std::exp(std::pow(sigma, 2)*T)-1);
 
     // number of simulations
-    int N_sims = std::pow(10, 4);
+    //int N_sims = std::pow(10, 4);
     int N = 256;
 
-    double res[N_sims];
     //first price is fixed at S0 so only 255 values may vary.
     Eigen::MatrixXd PCA(N-1,N-1);
     browniancov(N-1, T, sigma, PCA);
-    std::cout << "\nControl variate: first PCA component" << std::endl;
-    monte_carlo_terminal(r, T, K, S0, sigma, N, N_sims, PCA, res, expectedfinalprice, varfinalprice);
-    std::cout << "Control variate: terminal price" << std::endl;
-    monte_carlo_PCA(r, T, K, S0, sigma, N, N_sims, PCA, res, 0, 1);
+
+    for (auto j=3; j<6; ++j){
+        int N_sims = std::pow(10, j);
+        double res[N_sims];
+        std::cout << "\n# of iterations : " << N_sims << std::endl;
+        //std::cout << "\nControl variate: first PCA component" << std::endl;
+        monte_carlo_PCA(r, T, K, S0, sigma, N, N_sims, PCA, res, expectedfinalprice, varfinalprice, 0, 1);
+        //std::cout << "Control variate: terminal price" << std::endl;
+        //monte_carlo_PCA(r, T, K, S0, sigma, N, N_sims, PCA, res, 0, 1);
+    }
+
     //writeFile << N << ' ' << res << std::endl;
     writeFile.close();
     return 0;
